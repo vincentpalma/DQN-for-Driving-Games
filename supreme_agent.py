@@ -53,22 +53,24 @@ def step(action):
    # ReleaseKey(A)
    # ReleaseKey(D)
 
-   if action[0] == -1:  #brake 
-      PressKey(S) 
-      time.sleep(50)
-      ReleaseKey(S)
-   elif action[0] == 1: #accelerate
-      PressKey(W) 
-      time.sleep(50)
-      ReleaseKey(W)
    if action[1] == -1:  #turn left
       PressKey(A) 
-      time.sleep(50)
+      time.sleep(0.3)
       ReleaseKey(A)
    elif action[1] == 1: #turn right
       PressKey(D) 
-      time.sleep(50)
+      time.sleep(0.3)
       ReleaseKey(D)
+
+   if action[0] == -1:  #brake 
+      PressKey(S) 
+      time.sleep(1)
+      ReleaseKey(S)
+   elif action[0] == 1: #accelerate
+      PressKey(W) 
+      time.sleep(0.7)
+      ReleaseKey(W)
+
 
 if __name__ == '__main__':
    device = torch.device('cpu')
@@ -86,13 +88,16 @@ if __name__ == '__main__':
    last_actions = np.zeros(4)
    last_action = np.zeros(2)
 
-   x_coord, y_coord, x1_coord, y1_coord = get_window_coords('VDrift')
+   x_coord, y_coord, x1_coord, y1_coord = get_window_coords('Grand Theft Auto V')
 
    while True:
       start = time.time()
+
       img = pyautogui.screenshot(region=(x_coord, y_coord, x1_coord, y1_coord))
       image = np.asarray(img, np.float32)
       image = resize(image, (176,320), order=1, preserve_range=True)
+      cv2.imshow('Image-grabber', cv2.cvtColor(image/255, cv2.COLOR_BGR2RGB))
+      cv2.moveWindow('Image-grabber', 20,20)
 
       image -= datas['mean']
       # image = image.astype(np.float32) / 255.0
@@ -100,6 +105,7 @@ if __name__ == '__main__':
       image = image.transpose((2, 0, 1))  # HWC -> CHW
 
       image = torch.from_numpy(image.copy())
+      #plt.imshow(img); plt.show()      
 
       segmentation.eval()
       y = segmentation(image.unsqueeze(0))
@@ -109,11 +115,13 @@ if __name__ == '__main__':
       y = np.asarray(np.argmax(y, axis=2), dtype=np.float32)
       y[y==2] = 0
       y = torch.from_numpy(y.copy()).unsqueeze(0) # our image is now a tensor ready to be fed
+      #plt.imshow(trans(y.squeeze())); plt.show()
 
       # Encoding part
       pred, _,_,bottleneck = autoencoder(y.unsqueeze(0))
       encoded = bottleneck.data.cpu().numpy()
       decoded = pred.squeeze().data.cpu().numpy()
+      #plt.imshow(trans(pred.squeeze())); plt.show()
 
       # Deep Q-learning part
       action = agent(torch.FloatTensor([np.append(encoded,last_actions)])).data.max(1)[1].view(1, 1)
@@ -124,7 +132,11 @@ if __name__ == '__main__':
       print('Time :',time.time()-start)
 
    
-      #cv2.imshow('window', decoded)
+      cv2.imshow('Auto-encoded', decoded)
+      cv2.imshow('Segmented', y.squeeze().data.cpu().numpy())
+      cv2.moveWindow('Auto-encoded', 20,220)
+      cv2.moveWindow('Segmented', 20,440)
+      
       #cv2.imshow('window',cv2.cvtColor(screen, cv2.COLOR_BGR2RGB))
       if cv2.waitKey(25) & 0xFF == ord('q'):
          cv2.destroyAllWindows()
